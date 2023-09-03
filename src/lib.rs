@@ -6,19 +6,20 @@
 //! not rely on 3rd-party dependencies while still offering
 //! the high-level convience needed from this tool.
 
-use std::error::Error;
 use std::path::{PathBuf, Path};
 use std::fs;
 use std::time::SystemTime;
 
 mod error;
 
+pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
 /// You must specify the file name within the path. In it's current state,
 /// only a single new directory can be created. If you are placing error logs
 /// outside of the root of the project, it's recommended to use an absolute
 /// file path. Timestamps on error log are in relation to `UNIX_EPOCH`. This is
 /// a change for the future but will take *time* to implement. Get it?
-pub fn errlog(path: &str, error: String) -> Result<(), Box<dyn Error>> {
+pub fn errlog(path: &str, error: String) -> Result<()> {
 
     let path = create_path_from_str(path)?;
 
@@ -30,7 +31,7 @@ pub fn errlog(path: &str, error: String) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn create_path_from_str(text: &str) -> Result<PathBuf, Box<dyn Error>> {
+fn create_path_from_str(text: &str) -> Result<PathBuf> {
     let path = PathBuf::from(text);
     if let Some(ext) = path.extension() {
         if ext != "log" {
@@ -43,7 +44,7 @@ fn create_path_from_str(text: &str) -> Result<PathBuf, Box<dyn Error>> {
     Ok(path)
 }
 
-fn check_or_make_directory(path: &Path) -> Result<(), Box<dyn Error>> {
+fn check_or_make_directory(path: &Path) -> Result<()> {
     let mut dir_path = path.to_path_buf();
     dir_path.pop();
 
@@ -55,7 +56,7 @@ fn check_or_make_directory(path: &Path) -> Result<(), Box<dyn Error>> {
     Ok(())    
 }
 
-fn check_or_make_log(path: &Path) -> Result<(), Box<dyn Error>> {
+fn check_or_make_log(path: &Path) -> Result<()> {
     let path = path.to_path_buf();
     if path.try_exists()? {
         Ok(())
@@ -65,23 +66,54 @@ fn check_or_make_log(path: &Path) -> Result<(), Box<dyn Error>> {
     }
 }
 
-fn append_log(file_path: &PathBuf, error: &str) -> Result<(), Box<dyn Error>> {
+fn append_log(file_path: &PathBuf, error: &str) -> Result<()> {
 
-    let date_in_sec = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)?
-            .as_secs();
+    // TODO: parse into MM/DD/YYYY HH:MM:SS
+    // let date_in_sec = SystemTime::now()
+    //         .duration_since(SystemTime::UNIX_EPOCH)?
+    //         .as_secs();
+
+    let date_time = get_date()?;
 
     let current_log = fs::read_to_string(file_path)?;
 
-    let updated_log = format!("{}\n{} - {}\n", current_log, date_in_sec, error);
+    let updated_log = format!("{}\n{} - {}\n", current_log, date_time, error);
 
     fs::write(file_path, updated_log)?;
     Ok(())
 }
 
+
+// TODO: This probably needs to be it's own library - or just use chrono?
+fn get_date() -> Result<String> {
+    let date_in_sec = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)?
+        .as_secs();
+
+
+    const SECONDS_IN_YEAR: u64 = 31_536_000;
+    const SECONDS_IN_DAY: u64 = 86_400;
+
+    // TODO: Leap years????
+    let years: u64 = (date_in_sec / SECONDS_IN_YEAR) + 1970;
+    let months: u64 = (date_in_sec % SECONDS_IN_YEAR) / (SECONDS_IN_DAY * 30);
+    
+    let date_format = format!("Years: {}\nMonths: {}", years, months);
+    // let date_format = format!("{}/{}/{} - {}:{}:{}", month, days, years, hours, minutes, seconds);
+
+    Ok(date_format)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn get_date_test() {
+        let date = get_date().unwrap();
+        println!("{date}");
+        assert!(false);
+    }
 
     #[test]
     fn test_create_file_path() {
