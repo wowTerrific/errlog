@@ -8,6 +8,7 @@
 
 use std::path::{PathBuf, Path};
 use std::fs;
+use std::thread::Thread;
 use std::time::SystemTime;
 
 mod error;
@@ -85,21 +86,44 @@ fn append_log(file_path: &PathBuf, error: &str) -> Result<()> {
 
 
 // TODO: This probably needs to be it's own library - or just use chrono?
+// This will output time as UTC, should be marked as such in above log
 fn get_date() -> Result<String> {
     let date_in_sec = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)?
         .as_secs();
 
-
+    const DAY_MONTH: [u64; 11] = [31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
     const SECONDS_IN_YEAR: u64 = 31_536_000;
     const SECONDS_IN_DAY: u64 = 86_400;
+    const THREE_YEARS_IN_DAYS: u64 = 365 * 3;
+
+    let num_days = date_in_sec / SECONDS_IN_DAY;
+
+    let cycles = (num_days - (365+366)) / (THREE_YEARS_IN_DAYS + 366);
+    let remainder_years = ((num_days - (365+366)) % (THREE_YEARS_IN_DAYS + 366)) / 365;
+    let year = (cycles * 4) + remainder_years + 1972;
+    let remainder_days =  (num_days % (cycles * (THREE_YEARS_IN_DAYS + 366))) % 365;
+    let mut month: u64 = 12;
+    let mut day: u64 = 31;
+    for (i, val) in DAY_MONTH.iter().enumerate() {
+        if remainder_days <= *val {
+            month = i as u64;   // TODO!
+            day = remainder_days % val;
+            break;
+        }
+    }
+
+    let hours = ( date_in_sec % (60 * 60 * 24) ) / ( 60 * 60 );
+    let minutes = ( date_in_sec % (60 * 60) ) / 60;
+    let seconds = date_in_sec % 60;
 
     // TODO: Leap years????
-    let years: u64 = (date_in_sec / SECONDS_IN_YEAR) + 1970;
-    let months: u64 = (date_in_sec % SECONDS_IN_YEAR) / (SECONDS_IN_DAY * 30);
+    // let years: u64 = (date_in_sec / SECONDS_IN_YEAR) + 1970;
+    // let months: u64 = (date_in_sec % SECONDS_IN_YEAR) / (SECONDS_IN_DAY * 30);
     
-    let date_format = format!("Years: {}\nMonths: {}", years, months);
-    // let date_format = format!("{}/{}/{} - {}:{}:{}", month, days, years, hours, minutes, seconds);
+    // let date_format = format!("Years: {}\nMonths: {}", years, months);
+    let date_format = format!("{}/{}/{} - {}:{}:{}", month, day, year, hours, minutes, seconds);
+    // let date_format = format!("{}:{}:{}", hours, minutes, seconds);
 
     Ok(date_format)
 }
